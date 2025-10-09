@@ -7,12 +7,21 @@ on:
         description: 'Branch to deploy (use PR branch name)'
         required: true
         default: 'main'
+  workflow_run:
+    workflows: ["Validate Deployment on Production and UAT"]
+    types:
+      - completed
+    branches:
+      - main
 
 jobs:
   deploy:
     name: Deploy to UAT
     runs-on: ubuntu-latest
-    if: ${{ github.actor != 'dependabot[bot]' }}
+    if: |
+      github.actor != 'dependabot[bot]' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
     environment:
       name: UAT
       url: https://uat.salesforce.com
@@ -24,7 +33,7 @@ jobs:
       - name: 'Checkout source code'
         uses: actions/checkout@v3
         with:
-          ref: ${{ inputs.branch }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.event.workflow_run.head_branch }}
           fetch-depth: 0
 
       - name: 'Install Salesforce CLI'
