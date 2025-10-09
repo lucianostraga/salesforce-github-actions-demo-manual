@@ -7,15 +7,12 @@ on:
         description: 'Branch to deploy (use PR branch name)'
         required: true
         default: 'main'
-  pull_request:
-    types: [opened, synchronize]
-    branches: [ main ]
 
 jobs:
   deploy:
     name: Deploy to UAT
     runs-on: ubuntu-latest
-    if: ${{ github.actor != 'dependabot[bot]' && github.event_name != 'pull_request' }}
+    if: ${{ github.actor != 'dependabot[bot]' }}
     environment:
       name: UAT
       url: https://uat.salesforce.com
@@ -27,7 +24,7 @@ jobs:
       - name: 'Checkout source code'
         uses: actions/checkout@v3
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.branch || github.ref }}
+          ref: ${{ inputs.branch }}
           fetch-depth: 0
 
       - name: 'Install Salesforce CLI'
