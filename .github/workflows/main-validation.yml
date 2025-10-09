@@ -8,70 +8,9 @@ on:
         - 'force-app/**'
 
 jobs:
-    validate-production:
-        name: PRODUCTION
-        runs-on: ubuntu-latest
-        if: ${{ github.actor != 'dependabot[bot]' }}
-        environment:
-          name: PRODUCTION
-          url: https://login.salesforce.com
-        steps:
-            - uses: actions/setup-node@v3
-              with:
-                node-version: '23'
-
-            - name: 'Checkout source code'
-              uses: actions/checkout@v3
-              with:
-                fetch-depth: 0
-
-            - name: 'Cache Salesforce CLI'
-              id: cache-sf-cli
-              uses: actions/cache@v3
-              with:
-                path: ~/cli/sf
-                key: ${{ runner.os }}-sf-cli-${{ hashFiles('**/sfdx-project.json') }}
-
-            - name: 'Install Salesforce CLI'
-              if: steps.cache-sf-cli.outputs.cache-hit != 'true'
-              run: |
-                  wget https://developer.salesforce.com/media/salesforce-cli/sf/channels/stable/sf-linux-x64.tar.xz
-                  mkdir -p ~/cli/sf
-                  tar xJf sf-linux-x64.tar.xz -C ~/cli/sf --strip-components 1
-
-            - name: 'Add SF CLI to PATH'
-              run: echo "$HOME/cli/sf/bin" >> $GITHUB_PATH
-
-            - name: 'Install sf-git-delta plugin'
-              run: |
-                  echo y | sf plugins install sfdx-git-delta
-                  sf plugins
-
-            - name: 'Installing java'
-              run: |
-                sudo apt-get update
-                sudo apt install default-jdk
-
-            - name: 'Populate auth file with SFDX_URL secret of Production'
-              shell: bash
-              run: echo "${{ secrets.SFDX_PROD_URL }}" > ./SFDX_PROD_URL.txt
-
-            - name: 'Authenticate to Production'
-              run: sf org login sfdx-url --sfdx-url-file ./SFDX_PROD_URL.txt --alias prod
-
-            - name: 'Create delta packages for new, modified or deleted metadata'
-              run: |
-                  mkdir changed-sources
-                  sf sgd source delta --to "HEAD" --from "HEAD^" --output-dir changed-sources/ --generate-delta --source-dir force-app/
-
-            - name: 'Check-only deploy delta changes - RunLocalTests'
-              run: |
-                  sf project deploy validate --source-dir changed-sources/force-app --test-level RunLocalTests --target-org prod
-
     validate-uat:
         name: UAT
         runs-on: ubuntu-latest
-        needs: validate-production
         if: ${{ github.actor != 'dependabot[bot]' }}
         environment:
           name: UAT
@@ -128,3 +67,64 @@ jobs:
             - name: 'Check-only deploy delta changes - RunLocalTests'
               run: |
                   sf project deploy validate --source-dir changed-sources/force-app --test-level RunLocalTests --target-org uat
+
+    validate-production:
+        name: PRODUCTION
+        runs-on: ubuntu-latest
+        needs: validate-uat
+        if: ${{ github.actor != 'dependabot[bot]' }}
+        environment:
+          name: PRODUCTION
+          url: https://login.salesforce.com
+        steps:
+            - uses: actions/setup-node@v3
+              with:
+                node-version: '23'
+
+            - name: 'Checkout source code'
+              uses: actions/checkout@v3
+              with:
+                fetch-depth: 0
+
+            - name: 'Cache Salesforce CLI'
+              id: cache-sf-cli
+              uses: actions/cache@v3
+              with:
+                path: ~/cli/sf
+                key: ${{ runner.os }}-sf-cli-${{ hashFiles('**/sfdx-project.json') }}
+
+            - name: 'Install Salesforce CLI'
+              if: steps.cache-sf-cli.outputs.cache-hit != 'true'
+              run: |
+                  wget https://developer.salesforce.com/media/salesforce-cli/sf/channels/stable/sf-linux-x64.tar.xz
+                  mkdir -p ~/cli/sf
+                  tar xJf sf-linux-x64.tar.xz -C ~/cli/sf --strip-components 1
+
+            - name: 'Add SF CLI to PATH'
+              run: echo "$HOME/cli/sf/bin" >> $GITHUB_PATH
+
+            - name: 'Install sf-git-delta plugin'
+              run: |
+                  echo y | sf plugins install sfdx-git-delta
+                  sf plugins
+
+            - name: 'Installing java'
+              run: |
+                sudo apt-get update
+                sudo apt install default-jdk
+
+            - name: 'Populate auth file with SFDX_URL secret of Production'
+              shell: bash
+              run: echo "${{ secrets.SFDX_PROD_URL }}" > ./SFDX_PROD_URL.txt
+
+            - name: 'Authenticate to Production'
+              run: sf org login sfdx-url --sfdx-url-file ./SFDX_PROD_URL.txt --alias prod
+
+            - name: 'Create delta packages for new, modified or deleted metadata'
+              run: |
+                  mkdir changed-sources
+                  sf sgd source delta --to "HEAD" --from "HEAD^" --output-dir changed-sources/ --generate-delta --source-dir force-app/
+
+            - name: 'Check-only deploy delta changes - RunLocalTests'
+              run: |
+                  sf project deploy validate --source-dir changed-sources/force-app --test-level RunLocalTests --target-org prod
