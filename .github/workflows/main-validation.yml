@@ -9,7 +9,7 @@ on:
 
 jobs:
     validate-production:
-        name: Validate on Production
+        name: PRODUCTION
         runs-on: ubuntu-latest
         if: ${{ github.actor != 'dependabot[bot]' }}
         environment:
@@ -69,7 +69,7 @@ jobs:
                   sf project deploy validate --source-dir changed-sources/force-app --test-level RunLocalTests --target-org prod
 
     validate-uat:
-        name: Validate on UAT
+        name: UAT
         runs-on: ubuntu-latest
         needs: validate-production
         if: ${{ github.actor != 'dependabot[bot]' }}
