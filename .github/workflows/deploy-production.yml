@@ -8,7 +8,7 @@ on:
         required: true
         default: 'main'
   workflow_run:
-    workflows: ["Validate Deployment on Production and UAT"]
+    workflows: ["SALESFORCE VALIDATION"]
     types:
       - completed
     branches:

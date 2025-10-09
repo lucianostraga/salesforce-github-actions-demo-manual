@@ -1,4 +1,4 @@
-name: Validate Deployment on Production and UAT
+name: SALESFORCE VALIDATION
 
 on:
     pull_request:
