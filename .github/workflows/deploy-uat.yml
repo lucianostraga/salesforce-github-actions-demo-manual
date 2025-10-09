@@ -11,8 +11,6 @@ on:
     workflows: ["SALESFORCE VALIDATION"]
     types:
       - completed
-    branches:
-      - main
 
 jobs:
   deploy:
