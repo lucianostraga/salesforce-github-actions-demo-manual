@@ -52,7 +52,7 @@ jobs:
         needs: setup
         if: ${{ github.actor != 'dependabot[bot]' }}
         environment:
-          name: Production
+          name: PRODUCTION
           url: https://login.salesforce.com
         steps:
             - uses: actions/setup-node@v3
