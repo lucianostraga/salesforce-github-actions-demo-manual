@@ -105,8 +105,14 @@ jobs:
       - name: 'Create delta packages for PR changes'
         run: |
           mkdir changed-sources
-          ~/cli/sf/bin/sf sgd source delta --to "HEAD" --from "origin/main" --output-dir changed-sources/ --generate-delta --source-dir force-app/
+          ~/cli/sf/bin/sf sgd source delta --to "HEAD" --from "origin/main" --output-dir changed-sources/ --generate-delta --source-dir force-app/ || echo "Delta generation failed, will deploy all source"
 
-      - name: 'Deploy delta changes to Production'
+      - name: 'Deploy changes to Production'
         run: |
-          ~/cli/sf/bin/sf project deploy start --source-dir changed-sources/force-app --test-level RunLocalTests --target-org prod
+          if [ -d "changed-sources/force-app" ] && [ "$(ls -A changed-sources/force-app)" ]; then
+            echo "Deploying delta changes..."
+            ~/cli/sf/bin/sf project deploy start --source-dir changed-sources/force-app --test-level RunLocalTests --target-org prod
+          else
+            echo "No delta changes found or delta failed, deploying all source..."
+            ~/cli/sf/bin/sf project deploy start --source-dir force-app --test-level RunLocalTests --target-org prod
+          fi
