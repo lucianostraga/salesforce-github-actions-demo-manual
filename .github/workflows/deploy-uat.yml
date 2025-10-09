@@ -7,12 +7,15 @@ on:
         description: 'Branch to deploy (use PR branch name)'
         required: true
         default: 'main'
+  pull_request:
+    types: [opened, synchronize]
+    branches: [ main ]
 
 jobs:
   deploy:
     name: Deploy to UAT
     runs-on: ubuntu-latest
-    if: ${{ github.actor != 'dependabot[bot]' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.actor != 'dependabot[bot]' }}
     environment:
       name: UAT
       url: https://uat.salesforce.com
