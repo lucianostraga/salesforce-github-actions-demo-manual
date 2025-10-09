@@ -104,8 +104,18 @@ jobs:
 
       - name: 'Create delta packages for PR changes'
         run: |
+          echo "Current branch: $(git branch --show-current)"
+          echo "Current commit: $(git rev-parse HEAD)"
+          echo "Comparing to: origin/main ($(git rev-parse origin/main))"
+          git diff --name-only origin/main...HEAD
           mkdir changed-sources
           ~/cli/sf/bin/sf sgd source delta --to "HEAD" --from "origin/main" --output-dir changed-sources/ --generate-delta --source-dir force-app/ || echo "Delta generation failed, will deploy all source"
+          echo "Contents of changed-sources:"
+          ls -la changed-sources/ || echo "Directory not found"
+          if [ -d "changed-sources/force-app" ]; then
+            echo "Contents of changed-sources/force-app:"
+            ls -la changed-sources/force-app/
+          fi
 
       - name: 'Deploy changes to UAT'
         run: |
