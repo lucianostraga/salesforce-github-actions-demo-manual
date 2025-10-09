@@ -12,9 +12,6 @@ jobs:
         name: UAT
         runs-on: ubuntu-latest
         if: ${{ github.actor != 'dependabot[bot]' }}
-        environment:
-          name: UAT
-          url: https://test.salesforce.com
         steps:
             - uses: actions/setup-node@v3
               with:
@@ -73,9 +70,6 @@ jobs:
         runs-on: ubuntu-latest
         needs: validate-uat
         if: ${{ github.actor != 'dependabot[bot]' }}
-        environment:
-          name: PRODUCTION
-          url: https://login.salesforce.com
         steps:
             - uses: actions/setup-node@v3
               with:
