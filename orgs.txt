@@ -1,0 +1,6 @@
+luciano@githubactions.demo1 GitHubActionsProdDemo1
+luciano@githubactions.demo1.uat (GitHubActionsUatDemo1)
+luciano@githubactions.demo1.qa (GitHubActionsQaDemo1)
+luciano@githubactions.demo1.developer (GitHubActionsDevDemo1)
+
+sfdx force:org:display -u orgName  --verbose --json > authFile.json

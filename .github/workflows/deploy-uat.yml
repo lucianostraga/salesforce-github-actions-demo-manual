@@ -1,0 +1,62 @@
+name: Deploy to UAT
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy (use PR branch name)'
+        required: true
+        default: 'main'
+
+jobs:
+  deploy:
+    name: Deploy to UAT
+    runs-on: ubuntu-latest
+    if: ${{ github.actor != 'dependabot[bot]' }}
+    environment:
+      name: UAT
+      url: https://uat.salesforce.com
+    steps:
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '23'
+
+      - name: 'Checkout source code'
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+
+      - name: 'Install Salesforce CLI'
+        run: |
+          wget https://developer.salesforce.com/media/salesforce-cli/sf/channels/stable/sf-linux-x64.tar.xz
+          mkdir -p ~/cli/sf
+          tar xJf sf-linux-x64.tar.xz -C ~/cli/sf --strip-components 1
+          export PATH="$HOME/cli/sf/bin:$PATH"
+          ~/cli/sf/bin/sf version
+
+      - name: 'Install sf-git-delta plugin'
+        run: |
+          echo y | ~/cli/sf/bin/sf plugins install sfdx-git-delta
+          ~/cli/sf/bin/sf plugins
+
+      - name: 'Installing java'
+        run: |
+          sudo apt-get update
+          sudo apt install default-jdk
+
+      - name: 'Populate auth file with SFDX_URL secret'
+        shell: bash
+        run: echo "${{ secrets.SFDX_UAT_URL }}" > ./SFDX_URL.txt
+
+      - name: 'Authenticate to UAT Org'
+        run: ~/cli/sf/bin/sf org login sfdx-url --sfdx-url-file ./SFDX_URL.txt --alias uat
+
+      - name: 'Create delta packages for PR changes'
+        run: |
+          mkdir changed-sources
+          ~/cli/sf/bin/sf sgd source delta --to "HEAD" --from "origin/main" --output-dir changed-sources/ --generate-delta --source-dir force-app/
+
+      - name: 'Deploy delta changes to UAT'
+        run: |
+          ~/cli/sf/bin/sf project deploy start --source-dir changed-sources/force-app --test-level RunLocalTests --target-org uat
