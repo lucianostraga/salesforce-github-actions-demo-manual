@@ -7,6 +7,10 @@ on:
       paths:
         - 'force-app/**'
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
     validate-uat:
         name: UAT VALIDATION
