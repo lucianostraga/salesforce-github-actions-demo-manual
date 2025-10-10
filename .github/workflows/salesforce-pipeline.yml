@@ -124,7 +124,7 @@ jobs:
 
             - name: 'Deploy delta changes to UAT - RunLocalTests'
               run: |
-                  sf project deploy start --source-dir changed-sources/force-app --test-level RunLocalTests --target-org uat
+                  sf project deploy start --source-dir changed-sources/force-app --test-level RunLocalTests --ignore-conflicts --target-org uat
 
     validate-production:
         name: PRODUCTION VALIDATION
@@ -243,7 +243,7 @@ jobs:
 
             - name: 'Deploy delta changes to Production - RunLocalTests'
               run: |
-                  sf project deploy start --source-dir changed-sources/force-app --test-level RunLocalTests --target-org prod
+                  sf project deploy start --source-dir changed-sources/force-app --test-level RunLocalTests --ignore-conflicts --target-org prod
 
             - name: 'Auto-merge PR after successful deployment'
               uses: actions/github-script@v7
