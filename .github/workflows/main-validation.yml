@@ -74,6 +74,24 @@ jobs:
           name: UAT
           url: https://test.salesforce.com
         steps:
+            - name: 'Check PR approval status'
+              uses: actions/github-script@v7
+              with:
+                script: |
+                  const { data: reviews } = await github.rest.pulls.listReviews({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pull_number: context.issue.number,
+                  });
+
+                  const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
+
+                  if (approvedReviews.length === 0) {
+                    core.setFailed('PR must be approved before deploying to UAT');
+                  } else {
+                    console.log(`PR has ${approvedReviews.length} approval(s)`);
+                  }
+
             - uses: actions/setup-node@v3
               with:
                 node-version: '23'
