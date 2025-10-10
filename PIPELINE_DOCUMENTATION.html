@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salesforce CI/CD Pipeline Documentation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px;
+            color: #333;
+            background: #fff;
+        }
+        h1 {
+            color: #0070d2;
+            border-bottom: 3px solid #0070d2;
+            padding-bottom: 10px;
+            margin-top: 40px;
+        }
+        h2 {
+            color: #0070d2;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 8px;
+            margin-top: 32px;
+        }
+        h3 {
+            color: #005fb2;
+            margin-top: 24px;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        pre {
+            background: #f6f8fa;
+            padding: 16px;
+            border-radius: 6px;
+            overflow-x: auto;
+            border-left: 4px solid #0070d2;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background: #0070d2;
+            color: white;
+            font-weight: 600;
+        }
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        .workflow-diagram {
+            background: #f0f7ff;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #0070d2;
+        }
+        .stage {
+            background: #fff;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+        .stage-title {
+            font-weight: 600;
+            color: #0070d2;
+            margin-bottom: 8px;
+        }
+        ul, ol {
+            padding-left: 25px;
+        }
+        li {
+            margin: 8px 0;
+        }
+        .note {
+            background: #fffbf0;
+            padding: 15px;
+            border-left: 4px solid #ff9800;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .success {
+            background: #f0fff4;
+            padding: 15px;
+            border-left: 4px solid #4caf50;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        a {
+            color: #0070d2;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        @media print {
+            body {
+                padding: 20px;
+            }
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Salesforce CI/CD Pipeline Documentation</h1>
+
+    <h2>Overview</h2>
+    <p>This document describes the automated Salesforce deployment pipeline implemented using GitHub Actions. The pipeline automates the validation and deployment of Salesforce metadata changes from pull requests through UAT and Production environments.</p>
+
+    <h2>Pipeline Architecture</h2>
+    <h3>Workflow File</h3>
+    <ul>
+        <li><strong>Location</strong>: <code>.github/workflows/salesforce-pipeline.yml</code></li>
+        <li><strong>Trigger</strong>: Pull requests to <code>main</code> branch with changes in <code>force-app/**</code></li>
+        <li><strong>Platform</strong>: GitHub Actions on Ubuntu latest runners</li>
+    </ul>
+
+    <h2>Pipeline Stages</h2>
+    <p>The pipeline consists of four sequential jobs that ensure safe, tested deployments:</p>
+
+    <div class="workflow-diagram">
+        <pre>Pull Request → Validate UAT → Deploy UAT → Validate Production → Deploy Production → Auto-merge</pre>
+    </div>
+
+    <div class="stage">
+        <div class="stage-title">Stage 1: UAT Validation</div>
+        <p><strong>Job Name</strong>: <code>validate-uat</code></p>
+        <p><strong>Purpose</strong>: Validates that changes can be successfully deployed to the UAT environment without actually deploying them.</p>
+
+        <p><strong>Key Steps</strong>:</p>
+        <ol>
+            <li><strong>Environment Setup</strong>
+                <ul>
+                    <li>Node.js 23</li>
+                    <li>Salesforce CLI (cached for performance)</li>
+                    <li>sfdx-git-delta plugin</li>
+                    <li>Java (required for Salesforce CLI)</li>
+                </ul>
+            </li>
+            <li><strong>Delta Detection</strong>
+                <ul>
+                    <li>Uses <code>sf sgd source delta</code> to identify changed metadata</li>
+                    <li>Compares <code>HEAD</code> vs <code>HEAD^</code> (current vs previous commit)</li>
+                    <li>Generates delta package in <code>changed-sources/</code> directory</li>
+                </ul>
+            </li>
+            <li><strong>Validation</strong>
+                <ul>
+                    <li>Runs check-only deployment to UAT org</li>
+                    <li>Executes <code>RunLocalTests</code> (all local Apex tests)</li>
+                    <li>Does not modify the UAT environment</li>
+                </ul>
+            </li>
+        </ol>
+        <p><strong>Authentication</strong>: Uses <code>SFDX_UAT_URL</code> GitHub secret</p>
+    </div>
+
+    <div class="stage">
+        <div class="stage-title">Stage 2: UAT Deployment</div>
+        <p><strong>Job Name</strong>: <code>deploy-uat</code></p>
+        <p><strong>Dependencies</strong>: Requires <code>validate-uat</code> to pass</p>
+        <p><strong>Purpose</strong>: Deploys validated changes to the UAT environment for testing.</p>
+
+        <p><strong>Environment Protection</strong>:</p>
+        <ul>
+            <li>Environment name: UAT</li>
+            <li>URL: <a href="https://test.salesforce.com">https://test.salesforce.com</a></li>
+        </ul>
+
+        <p><strong>Key Steps</strong>:</p>
+        <ol>
+            <li>Same environment setup as validation</li>
+            <li>Regenerates delta package</li>
+            <li>Deploys to UAT with:
+                <ul>
+                    <li><code>RunLocalTests</code> test level</li>
+                    <li><code>--ignore-conflicts</code> flag to handle metadata conflicts</li>
+                    <li>Full deployment (not check-only)</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+
+    <div class="stage">
+        <div class="stage-title">Stage 3: Production Validation</div>
+        <p><strong>Job Name</strong>: <code>validate-production</code></p>
+        <p><strong>Dependencies</strong>: Requires <code>deploy-uat</code> to complete</p>
+        <p><strong>Purpose</strong>: Validates that changes can be deployed to Production without actually deploying.</p>
+
+        <p><strong>Key Steps</strong>:</p>
+        <ol>
+            <li>Environment setup (identical to UAT stages)</li>
+            <li>Delta package generation</li>
+            <li>Check-only deployment to Production org</li>
+            <li>Runs <code>RunLocalTests</code></li>
+        </ol>
+        <p><strong>Authentication</strong>: Uses <code>SFDX_PROD_URL</code> GitHub secret</p>
+    </div>
+
+    <div class="stage">
+        <div class="stage-title">Stage 4: Production Deployment</div>
+        <p><strong>Job Name</strong>: <code>deploy-production</code></p>
+        <p><strong>Dependencies</strong>: Requires <code>validate-production</code> to pass</p>
+        <p><strong>Purpose</strong>: Deploys changes to Production environment and auto-merges the PR.</p>
+
+        <p><strong>Environment Protection</strong>:</p>
+        <ul>
+            <li>Environment name: PRODUCTION</li>
+            <li>URL: <a href="https://login.salesforce.com">https://login.salesforce.com</a></li>
+        </ul>
+
+        <p><strong>Key Steps</strong>:</p>
+        <ol>
+            <li>Environment setup</li>
+            <li>Delta package generation</li>
+            <li>Deploy to Production with:
+                <ul>
+                    <li><code>RunLocalTests</code> test level</li>
+                    <li><code>--ignore-conflicts</code> flag</li>
+                </ul>
+            </li>
+            <li><strong>Auto-merge PR</strong>: Automatically merges the pull request using squash merge after successful deployment</li>
+        </ol>
+    </div>
+
+    <h2>Key Features</h2>
+
+    <h3>1. Delta Deployments</h3>
+    <ul>
+        <li>Uses <code>sfdx-git-delta</code> plugin to deploy only changed metadata</li>
+        <li>Compares commits to identify modifications</li>
+        <li>Reduces deployment time and risk</li>
+    </ul>
+
+    <h3>2. Performance Optimization</h3>
+    <ul>
+        <li><strong>CLI Caching</strong>: Salesforce CLI is cached to speed up builds</li>
+        <li>Cache key based on <code>sfdx-project.json</code> hash</li>
+        <li>Reduces installation time on subsequent runs</li>
+    </ul>
+
+    <h3>3. Environment Protection</h3>
+    <ul>
+        <li>UAT and Production environments configured with protection rules</li>
+        <li>Ensures proper approval gates (if configured in GitHub)</li>
+        <li>Clear separation between testing and production</li>
+    </ul>
+
+    <h3>4. Test Execution</h3>
+    <ul>
+        <li><strong>Test Level</strong>: <code>RunLocalTests</code></li>
+        <li>Runs all Apex tests in the org (excluding managed packages)</li>
+        <li>Ensures code coverage and quality standards</li>
+    </ul>
+
+    <h3>5. Auto-merge</h3>
+    <ul>
+        <li>Automatically merges PRs after successful Production deployment</li>
+        <li>Uses squash merge strategy for clean commit history</li>
+        <li>Reduces manual overhead for approved changes</li>
+    </ul>
+
+    <h3>6. Security</h3>
+    <ul>
+        <li>Authentication via encrypted GitHub secrets</li>
+        <li>No credentials stored in repository</li>
+        <li>SFDX URL-based authentication</li>
+    </ul>
+
+    <h2>Required GitHub Secrets</h2>
+    <p>The pipeline requires two secrets to be configured in the GitHub repository:</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Secret Name</th>
+                <th>Description</th>
+                <th>Usage</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>SFDX_UAT_URL</code></td>
+                <td>Salesforce authentication URL for UAT org</td>
+                <td>UAT validation and deployment</td>
+            </tr>
+            <tr>
+                <td><code>SFDX_PROD_URL</code></td>
+                <td>Salesforce authentication URL for Production org</td>
+                <td>Production validation and deployment</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>How to Generate SFDX URLs</h3>
+    <pre><code># Authenticate to your org
+sf org login web --alias my-org
+
+# Generate SFDX URL
+sf org display --verbose --json --target-org my-org</code></pre>
+
+    <h2>Permissions</h2>
+    <p>The workflow requires the following GitHub permissions:</p>
+    <pre><code>permissions:
+  contents: write        # For auto-merge
+  pull-requests: write   # For PR operations</code></pre>
+
+    <h2>Workflow Triggers</h2>
+    <p>The pipeline triggers on:</p>
+    <ul>
+        <li>Pull request opened to <code>main</code> branch</li>
+        <li>Pull request synchronized (new commits pushed)</li>
+        <li>Changes affecting <code>force-app/**</code> directory</li>
+    </ul>
+    <p><strong>Excluded</strong>: Dependabot PRs (via <code>if: ${{ github.actor != 'dependabot[bot]' }}</code>)</p>
+
+    <h2>Dependencies</h2>
+
+    <h3>Software</h3>
+    <ul>
+        <li><strong>Node.js</strong>: Version 23</li>
+        <li><strong>Salesforce CLI</strong>: Latest stable version</li>
+        <li><strong>Java</strong>: Default JDK (required for Salesforce CLI)</li>
+    </ul>
+
+    <h3>Salesforce CLI Plugins</h3>
+    <ul>
+        <li><code>sfdx-git-delta</code>: For delta deployment capabilities</li>
+    </ul>
+
+    <h2>Deployment Flow Example</h2>
+    <div class="workflow-diagram">
+        <pre>1. Developer creates PR with Apex class changes
+   ↓
+2. Pipeline detects changes in force-app/
+   ↓
+3. Validate UAT: Check-only deployment ✓
+   ↓
+4. Deploy UAT: Full deployment ✓
+   ↓
+5. Validate Production: Check-only deployment ✓
+   ↓
+6. Deploy Production: Full deployment ✓
+   ↓
+7. Auto-merge PR ✓</pre>
+    </div>
+
+    <h2>Error Handling</h2>
+
+    <h3>Validation Failures</h3>
+    <ul>
+        <li>If UAT validation fails, pipeline stops</li>
+        <li>No deployment occurs</li>
+        <li>Developer fixes issues and pushes new commit</li>
+    </ul>
+
+    <h3>Deployment Failures</h3>
+    <ul>
+        <li>If UAT deployment fails, Production stages are skipped</li>
+        <li>If Production validation fails, Production deployment is skipped</li>
+        <li>PR remains open for review</li>
+    </ul>
+
+    <h3>Conflict Resolution</h3>
+    <ul>
+        <li><code>--ignore-conflicts</code> flag allows deployments to proceed with certain metadata conflicts</li>
+        <li>Manual intervention may be required for complex conflicts</li>
+    </ul>
+
+    <h2>Best Practices</h2>
+
+    <h3>For Developers</h3>
+    <ol>
+        <li><strong>Test Locally</strong>: Run local Apex tests before creating PR</li>
+        <li><strong>Small Changes</strong>: Keep PRs focused on specific features/fixes</li>
+        <li><strong>Review Logs</strong>: Check GitHub Actions logs for deployment details</li>
+        <li><strong>Monitor UAT</strong>: Test changes in UAT before merging</li>
+    </ol>
+
+    <h3>For Administrators</h3>
+    <ol>
+        <li><strong>Environment Protection</strong>: Configure branch protection rules</li>
+        <li><strong>Secret Management</strong>: Regularly rotate SFDX authentication URLs</li>
+        <li><strong>Test Coverage</strong>: Maintain &gt;75% code coverage in all orgs</li>
+        <li><strong>Monitoring</strong>: Set up notifications for pipeline failures</li>
+    </ol>
+
+    <h2>Troubleshooting</h2>
+
+    <h3>Common Issues</h3>
+
+    <h4>Authentication Failures</h4>
+    <pre><code>Error: ERROR running org:login:sfdx-url</code></pre>
+    <p><strong>Solution</strong>: Update GitHub secrets with fresh SFDX URLs</p>
+
+    <h4>Delta Generation Failures</h4>
+    <pre><code>Error: Cannot read property 'from' of undefined</code></pre>
+    <p><strong>Solution</strong>: Ensure adequate commit history (fetch-depth: 0)</p>
+
+    <h4>Test Failures</h4>
+    <pre><code>Error: Test class failures</code></pre>
+    <p><strong>Solution</strong>: Fix failing tests and push new commit</p>
+
+    <h4>Cache Issues</h4>
+    <pre><code>Warning: Salesforce CLI version mismatch</code></pre>
+    <p><strong>Solution</strong>: Clear cache or update cache key</p>
+
+    <h2>Monitoring and Metrics</h2>
+
+    <h3>Key Metrics to Track</h3>
+    <ul>
+        <li><strong>Deployment Success Rate</strong>: Percentage of successful deployments</li>
+        <li><strong>Pipeline Duration</strong>: Time from PR creation to merge</li>
+        <li><strong>Test Execution Time</strong>: Duration of test runs</li>
+        <li><strong>Deployment Frequency</strong>: Number of deployments per day/week</li>
+    </ul>
+
+    <h3>GitHub Actions Insights</h3>
+    <ul>
+        <li>View workflow runs in <strong>Actions</strong> tab</li>
+        <li>Monitor job durations and success rates</li>
+        <li>Set up status badges for README</li>
+    </ul>
+
+    <h2>Future Enhancements</h2>
+
+    <h3>Potential Improvements</h3>
+    <ol>
+        <li><strong>Code Coverage Enforcement</strong>: Require minimum coverage thresholds</li>
+        <li><strong>Slack Notifications</strong>: Alert team on deployment status</li>
+        <li><strong>Rollback Capability</strong>: Automated rollback on production failures</li>
+        <li><strong>Staging Environment</strong>: Add intermediate staging environment</li>
+        <li><strong>PMD Analysis</strong>: Static code analysis for code quality</li>
+        <li><strong>Custom Test Selection</strong>: Allow specifying test classes in PR description</li>
+    </ol>
+
+    <h3>Scaling Considerations</h3>
+    <ul>
+        <li>Consider using self-hosted runners for faster builds</li>
+        <li>Implement parallel test execution for large test suites</li>
+        <li>Add manual approval gates for Production deployments</li>
+        <li>Implement canary deployments for risk reduction</li>
+    </ul>
+
+    <h2>Related Files</h2>
+    <ul>
+        <li><code>.github/workflows/salesforce-pipeline.yml</code> - Main workflow configuration</li>
+        <li><code>parsePR.js</code> - PR parsing utility (legacy, not currently used)</li>
+        <li><code>pull_request_template.md</code> - PR template</li>
+        <li><code>sfdx-project.json</code> - Salesforce project configuration</li>
+    </ul>
+
+    <h2>Support and Maintenance</h2>
+
+    <h3>Updating the Pipeline</h3>
+    <ol>
+        <li>Modify workflow file in <code>.github/workflows/</code></li>
+        <li>Test changes in a feature branch</li>
+        <li>Review logs carefully after deployment</li>
+        <li>Document changes in this file</li>
+    </ol>
+
+    <h3>Getting Help</h3>
+    <ul>
+        <li>GitHub Actions Documentation: <a href="https://docs.github.com/en/actions">https://docs.github.com/en/actions</a></li>
+        <li>Salesforce CLI Guide: <a href="https://developer.salesforce.com/docs/atlas.en-us.sfdx_cli_reference.meta/sfdx_cli_reference/">https://developer.salesforce.com/docs/atlas.en-us.sfdx_cli_reference.meta/sfdx_cli_reference/</a></li>
+        <li>sfdx-git-delta: <a href="https://github.com/scolladon/sfdx-git-delta">https://github.com/scolladon/sfdx-git-delta</a></li>
+    </ul>
+
+    <hr>
+
+    <p><strong>Last Updated</strong>: October 2025<br>
+    <strong>Pipeline Version</strong>: 1.0<br>
+    <strong>Maintained By</strong>: Development Team</p>
+
+    <div class="note no-print">
+        <strong>Note:</strong> To convert this HTML document to PDF, use your browser's "Print to PDF" function (File → Print → Save as PDF) or use tools like <code>wkhtmltopdf</code> or <code>pandoc</code>.
+    </div>
+</body>
+</html>
